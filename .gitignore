@@ -1,0 +1,23 @@
+# spksrc framework (trop volumineux, à cloner séparément)
+spksrc/
+
+# Build artifacts
+spk/php84/dist/
+spk/php84/work/
+spk/php84/package.tgz
+*.spk
+
+# Compiled binaries in target (reconstruire avec le build)
+spk/php84/src/target/
+
+# Temporary files
+*.tmp
+*.log
+*.pid
+*.sock
+
+# OS files
+.DS_Store
+Thumbs.db
+# Package build artifact
+spk/php84/src/package.tgz

@@ -1,0 +1,103 @@
+# PHP 8.4 SPK Package File List
+# Lists all files included in the SPK package
+
+# Package scripts
+scripts/start-stop-status
+scripts/postinst
+scripts/preuninst
+
+# Configuration
+conf/privilege
+conf/extensions.json
+
+# UI Files
+ui/config
+ui/PHP84Manager.js
+ui/style.css
+ui/images/php84_16.png
+ui/images/php84_24.png
+ui/images/php84_32.png
+ui/images/php84_48.png
+ui/images/php84_64.png
+ui/images/php84_72.png
+ui/images/icon_all.png
+ui/images/icon_category.png
+
+# CGI Scripts
+ui/cgi/extensions.cgi
+ui/cgi/config.cgi
+ui/cgi/service.cgi
+ui/cgi/validate.cgi
+
+# Service setup
+service-setup.sh
+
+# PHP Binaries (from cross/php84)
+target/bin/php
+target/bin/php-config
+target/bin/phpize
+target/sbin/php-fpm
+
+# PHP Libraries
+target/lib/libphp.so
+
+# PHP Extension Modules
+target/lib/php/modules/bcmath.so
+target/lib/php/modules/bz2.so
+target/lib/php/modules/calendar.so
+target/lib/php/modules/ctype.so
+target/lib/php/modules/curl.so
+target/lib/php/modules/dom.so
+target/lib/php/modules/exif.so
+target/lib/php/modules/ffi.so
+target/lib/php/modules/fileinfo.so
+target/lib/php/modules/filter.so
+target/lib/php/modules/ftp.so
+target/lib/php/modules/gd.so
+target/lib/php/modules/gettext.so
+target/lib/php/modules/gmp.so
+target/lib/php/modules/iconv.so
+target/lib/php/modules/intl.so
+target/lib/php/modules/mbstring.so
+target/lib/php/modules/opcache.so
+target/lib/php/modules/pcntl.so
+target/lib/php/modules/pdo.so
+target/lib/php/modules/pdo_sqlite.so
+target/lib/php/modules/phar.so
+target/lib/php/modules/posix.so
+target/lib/php/modules/readline.so
+target/lib/php/modules/session.so
+target/lib/php/modules/shmop.so
+target/lib/php/modules/simplexml.so
+target/lib/php/modules/soap.so
+target/lib/php/modules/sockets.so
+target/lib/php/modules/sodium.so
+target/lib/php/modules/sqlite3.so
+target/lib/php/modules/sysvmsg.so
+target/lib/php/modules/sysvsem.so
+target/lib/php/modules/sysvshm.so
+target/lib/php/modules/tokenizer.so
+target/lib/php/modules/xml.so
+target/lib/php/modules/xmlreader.so
+target/lib/php/modules/xmlwriter.so
+target/lib/php/modules/xsl.so
+target/lib/php/modules/zip.so
+target/lib/php/modules/zlib.so
+
+# PHP Configuration Templates
+target/etc/php.ini
+target/etc/php-fpm.conf.default
+target/etc/php-fpm.d/www.conf.default
+target/etc/php/extensions.json
+
+# Include files
+target/include/php/
+
+# Man pages
+target/share/man/man1/php.1
+target/share/man/man1/php-config.1
+target/share/man/man1/phpize.1
+target/share/man/man8/php-fpm.8
+
+# Build tools
+target/lib/php/build/

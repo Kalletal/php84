@@ -1,0 +1,224 @@
+#!/bin/sh
+# PHP 8.4 Service Control Script
+# POSIX-compliant - Handles start, stop, and status operations for PHP-FPM
+
+# Package paths (provided by DSM)
+SYNOPKG_PKGDEST="${SYNOPKG_PKGDEST:-/var/packages/php84/target}"
+SYNOPKG_PKGVAR="${SYNOPKG_PKGVAR:-/var/packages/php84/var}"
+SYNOPKG_PKGNAME="${SYNOPKG_PKGNAME:-php84}"
+
+# Set library path for shared libraries bundled with the package
+export LD_LIBRARY_PATH="${SYNOPKG_PKGDEST}/lib:${LD_LIBRARY_PATH}"
+
+# Service paths
+PHP_FPM="${SYNOPKG_PKGDEST}/sbin/php-fpm"
+PHP_FPM_CONF="${SYNOPKG_PKGVAR}/etc/php-fpm.conf"
+PHP_INI="${SYNOPKG_PKGVAR}/etc/php.ini"
+PID_FILE="${SYNOPKG_PKGVAR}/run/php-fpm.pid"
+
+# Logging function
+log() {
+    mkdir -p "${SYNOPKG_PKGVAR}/log" 2>/dev/null
+    echo "[service] $1" >> "${SYNOPKG_PKGVAR}/log/service.log" 2>/dev/null
+}
+
+# Check if PHP-FPM is running
+is_running() {
+    if [ -f "$PID_FILE" ]; then
+        pid=$(cat "$PID_FILE" 2>/dev/null)
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Verify configuration
+verify_config() {
+    if [ ! -f "$PHP_FPM_CONF" ]; then
+        log "ERROR: PHP-FPM configuration not found: $PHP_FPM_CONF"
+        return 1
+    fi
+
+    if [ ! -f "$PHP_INI" ]; then
+        log "ERROR: PHP configuration not found: $PHP_INI"
+        return 1
+    fi
+
+    # Test configuration with proper library path
+    env LD_LIBRARY_PATH="${SYNOPKG_PKGDEST}/lib:${LD_LIBRARY_PATH}" \
+        "$PHP_FPM" -c "$PHP_INI" -y "$PHP_FPM_CONF" -t > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        log "ERROR: PHP-FPM configuration test failed"
+        return 1
+    fi
+
+    return 0
+}
+
+# Start service
+start_service() {
+    log "Starting PHP-FPM service..."
+
+    if is_running; then
+        log "PHP-FPM is already running"
+        return 0
+    fi
+
+    # Verify configuration
+    if ! verify_config; then
+        return 1
+    fi
+
+    # Ensure run directory exists (DSM manages permissions automatically)
+    mkdir -p "${SYNOPKG_PKGVAR}/run"
+
+    # Ensure log directory exists
+    mkdir -p "${SYNOPKG_PKGVAR}/log"
+
+    # Start PHP-FPM with explicit LD_LIBRARY_PATH
+    # Use env to ensure library path is passed to daemon process
+    env LD_LIBRARY_PATH="${SYNOPKG_PKGDEST}/lib:${LD_LIBRARY_PATH}" \
+        "$PHP_FPM" -c "$PHP_INI" -y "$PHP_FPM_CONF"
+    exit_code=$?
+
+    if [ $exit_code -ne 0 ]; then
+        log "ERROR: Failed to start PHP-FPM (exit code: $exit_code)"
+        return 1
+    fi
+
+    # Wait for startup
+    sleep 2
+
+    if is_running; then
+        pid=$(cat "$PID_FILE" 2>/dev/null)
+        log "PHP-FPM started successfully (PID: $pid)"
+        return 0
+    else
+        log "ERROR: PHP-FPM failed to start"
+        return 1
+    fi
+}
+
+# Stop service
+stop_service() {
+    log "Stopping PHP-FPM service..."
+
+    if ! is_running; then
+        log "PHP-FPM is not running"
+        rm -f "$PID_FILE"
+        return 0
+    fi
+
+    pid=$(cat "$PID_FILE" 2>/dev/null)
+    log "Sending SIGTERM to PHP-FPM (PID: $pid)"
+
+    # Send SIGTERM for graceful shutdown
+    kill "$pid" 2>/dev/null
+
+    # Wait for shutdown (up to 10 seconds)
+    count=0
+    while [ $count -lt 10 ]; do
+        if ! is_running; then
+            log "PHP-FPM stopped gracefully"
+            rm -f "$PID_FILE"
+            return 0
+        fi
+        sleep 1
+        count=$((count + 1))
+    done
+
+    # Force kill if still running
+    log "WARNING: Force killing PHP-FPM"
+    kill -9 "$pid" 2>/dev/null
+    sleep 1
+
+    rm -f "$PID_FILE"
+
+    if ! is_running; then
+        log "PHP-FPM stopped (forced)"
+        return 0
+    else
+        log "ERROR: Failed to stop PHP-FPM"
+        return 1
+    fi
+}
+
+# Restart service
+restart_service() {
+    log "Restarting PHP-FPM service..."
+    stop_service
+    sleep 1
+    start_service
+}
+
+# Reload configuration
+reload_config() {
+    log "Reloading PHP-FPM configuration..."
+
+    if ! is_running; then
+        log "PHP-FPM is not running, starting instead"
+        start_service
+        return $?
+    fi
+
+    # Verify new configuration first
+    if ! verify_config; then
+        return 1
+    fi
+
+    pid=$(cat "$PID_FILE" 2>/dev/null)
+
+    # Send SIGUSR2 to reload configuration
+    kill -USR2 "$pid" 2>/dev/null
+
+    sleep 1
+
+    if is_running; then
+        log "Configuration reloaded successfully"
+        return 0
+    else
+        log "ERROR: PHP-FPM crashed during reload"
+        return 1
+    fi
+}
+
+# Get service status
+get_status() {
+    if is_running; then
+        pid=$(cat "$PID_FILE" 2>/dev/null)
+        echo "PHP-FPM is running (PID: $pid)"
+        return 0
+    else
+        echo "PHP-FPM is not running"
+        return 3
+    fi
+}
+
+# Main
+case "$1" in
+    start)
+        start_service
+        exit $?
+        ;;
+    stop)
+        stop_service
+        exit $?
+        ;;
+    restart)
+        restart_service
+        exit $?
+        ;;
+    reload)
+        reload_config
+        exit $?
+        ;;
+    status)
+        get_status
+        exit $?
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|reload|status}"
+        exit 1
+        ;;
+esac

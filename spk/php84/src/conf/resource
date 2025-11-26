@@ -1,0 +1,6 @@
+{
+    "usr-local-linker": {
+        "bin": ["bin/php", "bin/phpize", "bin/php-config", "bin/pecl"],
+        "sbin": ["sbin/php-fpm"]
+    }
+}

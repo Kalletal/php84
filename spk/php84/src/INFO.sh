@@ -1,0 +1,50 @@
+#!/bin/bash
+# PHP 8.4 Package Information
+# This file defines package metadata for DSM
+
+PACKAGE="php84"
+VERSION="8.4.15"
+DISPLAYNAME="PHP 8.4"
+MAINTAINER="Gilles"
+MAINTAINER_URL="https://github.com/gilles"
+DISTRIBUTOR=""
+DISTRIBUTOR_URL=""
+DESCRIPTION="PHP 8.4.15 with extension manager for Synology DSM 7.2"
+DESCRIPTION_FRE="PHP 8.4.15 avec gestionnaire d'extensions pour Synology DSM 7.2"
+CHANGELOG="Initial release with PHP 8.4.15"
+ARCH="geminilake"
+DSM_UI_DIR="ui"
+DSMUIDIR="ui"
+DSMAPPNAME="SYNO.SDS.PHP84Manager"
+DSMAPPPAGE="SYNO.SDS.PHP84Manager.Instance"
+DSMAPPLAUNCHNAME="com.synocommunity.php84"
+# STARTSTOP_RESTART_SERVICE removed - requires root privileges (DSM 7 non-root)
+SPK_DEPENDS=""
+INSTALL_DEP_PACKAGES=""
+OS_MIN_VER="7.2-64570"
+STARTABLE="yes"
+SUPPORT_URL=""
+HELPURL=""
+REPORT_URL=""
+BETA="no"
+RELOAD_UI="yes"
+REBOOT="no"
+SILENT_INSTALL="no"
+SILENT_UPGRADE="no"
+SILENT_UNINSTALL="no"
+
+# Service configuration
+SERVICE_USER="auto"
+SERVICE_SETUP="service-setup.sh"
+SERVICE_COMMAND=""
+SERVICE_PORT=""
+SERVICE_PORT_TITLE=""
+ADMIN_PORT=""
+ADMIN_URL=""
+ADMIN_TYPE="static"
+ADMIN_PROTOCOL="http"
+SC_FIRMWARE="7.2-64570"
+SC_GROUP="http"
+
+# Wizard support
+WIZUIFILES="yes"

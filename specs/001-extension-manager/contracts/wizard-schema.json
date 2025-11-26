@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PHP 8.4 Installation Wizard",
+  "description": "Schema for install_uifile wizard configuration",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["step_title", "items"],
+    "properties": {
+      "step_title": {
+        "type": "string",
+        "description": "Title displayed at top of wizard step"
+      },
+      "invalid_next_disabled": {
+        "type": "boolean",
+        "default": false,
+        "description": "Disable Next button if validation fails"
+      },
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["textfield", "password", "singleselect", "multiselect", "combobox"]
+            },
+            "desc": {
+              "type": "string",
+              "description": "Label/description for the field group"
+            },
+            "subitems": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["key", "desc"],
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "description": "Variable name available in scripts"
+                  },
+                  "desc": {
+                    "type": "string",
+                    "description": "Label displayed next to checkbox/field"
+                  },
+                  "defaultValue": {
+                    "oneOf": [
+                      {"type": "boolean"},
+                      {"type": "string"}
+                    ],
+                    "description": "Default value (true/false for checkboxes)"
+                  },
+                  "emptyText": {
+                    "type": "string",
+                    "description": "Placeholder text for empty fields"
+                  },
+                  "validator": {
+                    "type": "object",
+                    "properties": {
+                      "allowBlank": {"type": "boolean"},
+                      "minLength": {"type": "integer"},
+                      "maxLength": {"type": "integer"},
+                      "regex": {
+                        "type": "object",
+                        "properties": {
+                          "expr": {"type": "string"},
+                          "errorText": {"type": "string"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

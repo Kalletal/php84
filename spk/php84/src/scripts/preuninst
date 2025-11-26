@@ -1,0 +1,72 @@
+#!/bin/sh
+# PHP 8.4.15 Pre-uninstallation Script
+# POSIX-compliant - This script runs before package files are removed
+
+# Package paths (provided by DSM)
+SYNOPKG_PKGDEST="${SYNOPKG_PKGDEST:-/var/packages/php84/target}"
+SYNOPKG_PKGVAR="${SYNOPKG_PKGVAR:-/var/packages/php84/var}"
+SYNOPKG_PKGNAME="${SYNOPKG_PKGNAME:-php84}"
+
+# Log file
+LOG_FILE="${SYNOPKG_PKGVAR}/log/uninstall.log"
+
+# Logging function
+log() {
+    echo "[preuninst] $1" >> "${LOG_FILE}" 2>/dev/null
+    echo "$1"
+}
+
+# Stop PHP-FPM if running
+stop_service() {
+    log "Stopping PHP-FPM service..."
+
+    PID_FILE="${SYNOPKG_PKGVAR}/run/php-fpm.pid"
+    if [ -f "${PID_FILE}" ]; then
+        PID=$(cat "${PID_FILE}" 2>/dev/null)
+        if [ -n "${PID}" ] && kill -0 "${PID}" 2>/dev/null; then
+            kill "${PID}" 2>/dev/null
+            sleep 2
+            # Force kill if still running
+            if kill -0 "${PID}" 2>/dev/null; then
+                kill -9 "${PID}" 2>/dev/null
+            fi
+        fi
+        rm -f "${PID_FILE}"
+    fi
+}
+
+# Remove symlinks
+remove_symlinks() {
+    log "Removing symlinks..."
+
+    rm -f "/usr/local/bin/php84" 2>/dev/null
+    rm -f "/usr/local/bin/php-fpm84" 2>/dev/null
+}
+
+# Clean temporary files
+clean_temp() {
+    log "Cleaning temporary files..."
+
+    rm -rf "${SYNOPKG_PKGVAR}/tmp/"* 2>/dev/null
+    rm -rf "${SYNOPKG_PKGVAR}/run/"* 2>/dev/null
+}
+
+# Main pre-uninstallation process
+main() {
+    log "=========================================="
+    log "PHP 8.4.15 Pre-uninstallation starting..."
+    log "=========================================="
+
+    stop_service
+    remove_symlinks
+    clean_temp
+
+    log "=========================================="
+    log "Pre-uninstallation completed!"
+    log "=========================================="
+
+    exit 0
+}
+
+# Run main
+main "$@"

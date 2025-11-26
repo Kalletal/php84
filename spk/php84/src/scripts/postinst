@@ -1,0 +1,440 @@
+#!/bin/sh
+# PHP 8.4.15 Post-installation Script
+# POSIX-compliant - No external commands like sed, awk, grep
+
+# Package paths (provided by DSM during installation)
+SYNOPKG_PKGDEST="${SYNOPKG_PKGDEST:-/var/packages/php84/target}"
+SYNOPKG_PKGVAR="${SYNOPKG_PKGVAR:-/var/packages/php84/var}"
+SYNOPKG_PKGNAME="${SYNOPKG_PKGNAME:-php84}"
+
+# Configuration paths
+CONF_DIR="${SYNOPKG_PKGVAR}/etc"
+CONF_D_DIR="${CONF_DIR}/conf.d"
+USER_CONFIG="${SYNOPKG_PKGVAR}/config.json"
+LOG_FILE="${SYNOPKG_PKGVAR}/log/install.log"
+
+# Extension directory
+EXT_DIR="${SYNOPKG_PKGDEST}/lib/php/extensions/no-debug-non-zts-20240924"
+
+# Logging function
+log() {
+    mkdir -p "$(dirname "${LOG_FILE}")"
+    echo "[postinst] $1" >> "${LOG_FILE}" 2>/dev/null
+    echo "$1"
+}
+
+# Create necessary directories
+create_directories() {
+    log "Creating configuration directories..."
+    mkdir -p "${CONF_DIR}"
+    mkdir -p "${CONF_D_DIR}"
+    mkdir -p "${SYNOPKG_PKGVAR}/log"
+    mkdir -p "${SYNOPKG_PKGVAR}/run"
+    mkdir -p "${SYNOPKG_PKGVAR}/tmp"
+}
+
+# Initialize php.ini
+init_php_ini() {
+    log "Initializing php.ini..."
+
+    if [ ! -f "${CONF_DIR}/php.ini" ]; then
+        # Create php.ini from scratch with essential settings
+        cat > "${CONF_DIR}/php.ini" << EOF
+[PHP]
+; PHP 8.4.15 Configuration for Synology DSM
+
+; Extension directory
+extension_dir = "${EXT_DIR}"
+
+; Scan directory for additional .ini files
+; Note: DSM uses conf.d pattern
+
+; Basic settings
+engine = On
+short_open_tag = Off
+precision = 14
+output_buffering = 4096
+zlib.output_compression = Off
+implicit_flush = Off
+serialize_precision = -1
+
+; Error handling
+error_reporting = E_ALL & ~E_DEPRECATED & ~E_STRICT
+display_errors = Off
+display_startup_errors = Off
+log_errors = On
+error_log = ${SYNOPKG_PKGVAR}/log/php_errors.log
+log_errors_max_len = 1024
+ignore_repeated_errors = Off
+ignore_repeated_source = Off
+report_memleaks = On
+
+; Resource limits
+max_execution_time = 60
+max_input_time = 60
+memory_limit = 256M
+
+; Data handling
+variables_order = "GPCS"
+request_order = "GP"
+register_argc_argv = Off
+auto_globals_jit = On
+post_max_size = 64M
+default_mimetype = "text/html"
+default_charset = "UTF-8"
+
+; File uploads
+file_uploads = On
+upload_max_filesize = 64M
+max_file_uploads = 20
+
+; Paths and directories
+doc_root =
+user_dir =
+enable_dl = Off
+
+; cgi.fix_pathinfo provides *real* PATH_INFO/PATH_TRANSLATED support for CGI
+cgi.fix_pathinfo = 0
+
+; Timezone
+date.timezone = "UTC"
+
+; Session
+session.save_handler = files
+session.save_path = "${SYNOPKG_PKGVAR}/tmp"
+session.use_strict_mode = 1
+session.use_cookies = 1
+session.use_only_cookies = 1
+session.name = PHPSESSID
+session.auto_start = 0
+session.cookie_lifetime = 0
+session.cookie_path = /
+session.cookie_domain =
+session.cookie_httponly = 1
+session.cookie_samesite = "Lax"
+session.serialize_handler = php
+session.gc_probability = 1
+session.gc_divisor = 1000
+session.gc_maxlifetime = 1440
+session.sid_length = 32
+session.sid_bits_per_character = 5
+
+; Scan directory for conf.d
+EOF
+    fi
+}
+
+# Initialize php-fpm.conf
+init_php_fpm_conf() {
+    log "Initializing php-fpm.conf..."
+
+    if [ ! -f "${CONF_DIR}/php-fpm.conf" ]; then
+        cat > "${CONF_DIR}/php-fpm.conf" << EOF
+[global]
+pid = ${SYNOPKG_PKGVAR}/run/php-fpm.pid
+error_log = ${SYNOPKG_PKGVAR}/log/php-fpm.log
+log_level = notice
+daemonize = yes
+
+include=${CONF_DIR}/php-fpm.d/*.conf
+EOF
+    fi
+
+    # Create pool directory and default pool
+    # In non-root mode, PHP-FPM runs as the user who starts it
+    # We must NOT specify user/group directives (requires root)
+
+    mkdir -p "${CONF_DIR}/php-fpm.d"
+    if [ ! -f "${CONF_DIR}/php-fpm.d/www.conf" ]; then
+        # Note: In non-root mode, we omit user/group directives
+        # PHP-FPM will run as the package service user automatically
+        cat > "${CONF_DIR}/php-fpm.d/www.conf" << EOF
+[www]
+; Non-root mode: omit user/group (runs as service user)
+; user and group directives removed - requires root privileges
+
+; Socket in package var directory (accessible without root)
+listen = ${SYNOPKG_PKGVAR}/run/php-fpm.sock
+listen.mode = 0666
+
+; Process manager settings
+pm = dynamic
+pm.max_children = 5
+pm.start_servers = 2
+pm.min_spare_servers = 1
+pm.max_spare_servers = 3
+pm.max_requests = 500
+
+; Logging
+slowlog = ${SYNOPKG_PKGVAR}/log/php-fpm.slow.log
+request_slowlog_timeout = 30s
+catch_workers_output = yes
+decorate_workers_output = no
+EOF
+    fi
+}
+
+# Enable a specific extension by creating its .ini file
+# Extensions are prefixed with numbers to control load order
+enable_extension() {
+    ext_name="$1"
+    ext_file="${ext_name}.so"
+
+    # Determine load order prefix based on dependencies
+    # Lower numbers load first
+    case "$ext_name" in
+        # Core extensions that others depend on - load first (00-09)
+        mysqlnd)      prefix="00" ;;
+        pdo)          prefix="01" ;;
+        igbinary)     prefix="02" ;;
+        msgpack)      prefix="03" ;;
+        # Database extensions depending on pdo/mysqlnd (10-19)
+        pdo_mysql|pdo_sqlite|pdo_pgsql) prefix="10" ;;
+        mysqli)       prefix="11" ;;
+        sqlite3)      prefix="12" ;;
+        # Extensions depending on igbinary/msgpack (20-29)
+        redis)        prefix="20" ;;
+        memcached)    prefix="21" ;;
+        # All other extensions (50+)
+        *)            prefix="50" ;;
+    esac
+
+    ini_file="${CONF_D_DIR}/${prefix}-${ext_name}.ini"
+
+    # Check if extension file exists
+    if [ -f "${EXT_DIR}/${ext_file}" ]; then
+        # Zend extensions (opcache, xdebug)
+        case "$ext_name" in
+            opcache|xdebug)
+                echo "zend_extension=${ext_file}" > "${ini_file}"
+                ;;
+            *)
+                echo "extension=${ext_file}" > "${ini_file}"
+                ;;
+        esac
+
+        # Extension-specific configuration
+        case "$ext_name" in
+            opcache)
+                cat >> "${ini_file}" << 'EOF'
+opcache.enable=1
+opcache.enable_cli=0
+opcache.memory_consumption=128
+opcache.interned_strings_buffer=8
+opcache.max_accelerated_files=10000
+opcache.revalidate_freq=2
+opcache.fast_shutdown=1
+EOF
+                ;;
+            apcu)
+                cat >> "${ini_file}" << 'EOF'
+apc.enabled=1
+apc.shm_size=32M
+apc.ttl=7200
+apc.enable_cli=0
+EOF
+                ;;
+            xdebug)
+                cat >> "${ini_file}" << 'EOF'
+xdebug.mode=off
+xdebug.start_with_request=no
+xdebug.client_host=localhost
+xdebug.client_port=9003
+EOF
+                ;;
+        esac
+
+        log "Enabled extension: $ext_name"
+        return 0
+    else
+        log "Extension not found: $ext_file"
+        return 1
+    fi
+}
+
+# Process wizard selections based on profile
+# Wizard variables: profile_minimal, profile_standard, profile_complete
+# Plus optional extensions: opt_*
+process_wizard_selections() {
+    log "Processing wizard profile selection..."
+
+    # Initialize user config
+    cat > "${USER_CONFIG}" << 'EOF'
+{
+  "version": "1.0",
+  "php_version": "8.4.15",
+  "extensions": {},
+  "settings": {
+    "memory_limit": "256M",
+    "max_execution_time": 60,
+    "upload_max_filesize": "64M",
+    "post_max_size": "64M",
+    "timezone": "UTC"
+  }
+}
+EOF
+
+    # Determine selected profile and enable base extensions
+    if [ "$profile_complete" = "true" ]; then
+        log "Profile: COMPLETE - Enabling all extensions"
+        enable_profile_complete
+    elif [ "$profile_minimal" = "true" ]; then
+        log "Profile: MINIMAL - Enabling base extensions"
+        enable_profile_minimal
+        process_minimal_extensions
+    else
+        # Default to standard
+        log "Profile: STANDARD - Enabling common extensions"
+        enable_profile_standard
+        process_standard_extensions
+    fi
+}
+
+# Profile: Minimal - Essential extensions only
+enable_profile_minimal() {
+    log "Enabling minimal profile extensions..."
+    enable_extension "opcache"
+    enable_extension "session"
+    enable_extension "filter"
+    enable_extension "ctype"
+    enable_extension "pdo"
+    enable_extension "curl"
+    enable_extension "openssl"
+}
+
+# Profile: Standard - Common extensions for web apps
+enable_profile_standard() {
+    log "Enabling standard profile extensions..."
+    # Core
+    enable_extension "opcache"
+    enable_extension "session"
+    enable_extension "filter"
+    enable_extension "ctype"
+    enable_extension "fileinfo"
+    enable_extension "tokenizer"
+    enable_extension "phar"
+    # Database
+    enable_extension "pdo"
+    enable_extension "pdo_mysql"
+    enable_extension "mysqli"
+    enable_extension "mysqlnd"
+    enable_extension "pdo_sqlite"
+    enable_extension "sqlite3"
+    # Network
+    enable_extension "curl"
+    enable_extension "openssl"
+    # Text
+    enable_extension "mbstring"
+    enable_extension "iconv"
+    enable_extension "intl"
+    # XML
+    enable_extension "xml"
+    enable_extension "dom"
+    enable_extension "simplexml"
+    # Compression
+    enable_extension "zip"
+    enable_extension "zlib"
+    # Image & Math
+    enable_extension "gd"
+    enable_extension "bcmath"
+    enable_extension "sodium"
+}
+
+# Profile: Complete - All extensions
+enable_profile_complete() {
+    log "Enabling complete profile - all extensions..."
+    # Enable all available extensions
+    for ext_file in "${EXT_DIR}"/*.so; do
+        if [ -f "$ext_file" ]; then
+            ext_name=$(basename "$ext_file" .so)
+            enable_extension "$ext_name"
+        fi
+    done
+}
+
+# Process optional extensions for Minimal profile
+process_minimal_extensions() {
+    log "Processing Minimal profile extensions..."
+
+    # Enable igbinary if redis is selected (it depends on it)
+    if [ "$min_redis" = "true" ]; then
+        enable_extension "igbinary"
+    fi
+
+    [ "$min_apcu" = "true" ] && enable_extension "apcu"
+    [ "$min_redis" = "true" ] && enable_extension "redis"
+    [ "$min_mbstring" = "true" ] && enable_extension "mbstring"
+    [ "$min_json" = "true" ] && enable_extension "json"
+    [ "$min_xml" = "true" ] && enable_extension "xml"
+    [ "$min_zip" = "true" ] && enable_extension "zip"
+}
+
+# Process optional extensions for Standard profile
+process_standard_extensions() {
+    log "Processing Standard profile extensions..."
+
+    # Enable igbinary if redis or memcached is selected (they depend on it)
+    if [ "$std_redis" = "true" ] || [ "$std_memcached" = "true" ]; then
+        enable_extension "igbinary"
+    fi
+
+    # Cache & NoSQL
+    [ "$std_apcu" = "true" ] && enable_extension "apcu"
+    [ "$std_redis" = "true" ] && enable_extension "redis"
+    [ "$std_memcached" = "true" ] && enable_extension "memcached"
+    [ "$std_mongodb" = "true" ] && enable_extension "mongodb"
+    # Network
+    [ "$std_sockets" = "true" ] && enable_extension "sockets"
+    [ "$std_soap" = "true" ] && enable_extension "soap"
+    [ "$std_ssh2" = "true" ] && enable_extension "ssh2"
+    [ "$std_ldap" = "true" ] && enable_extension "ldap"
+    [ "$std_ftp" = "true" ] && enable_extension "ftp"
+    # Development
+    [ "$std_xdebug" = "true" ] && enable_extension "xdebug"
+    [ "$std_yaml" = "true" ] && enable_extension "yaml"
+    [ "$std_pcntl" = "true" ] && enable_extension "pcntl"
+}
+
+# Set proper permissions
+# Note: DSM 7 manages ownership and permissions automatically
+# For non-root packages, we should NOT use chmod on system directories
+# Files in SYNOPKG_PKGVAR are owned by the package user
+set_permissions() {
+    log "Setting permissions (non-root mode)..."
+    # DSM 7 handles permissions automatically for non-root packages
+    # No chmod operations needed - files are created with correct permissions
+    # Binary permissions are preserved from package.tgz
+    log "Permissions managed by DSM"
+}
+
+# Create symlinks for convenience
+# Note: System-wide symlinks in /usr/local/bin require root privileges
+# which are not available in non-root packages. Users can create these
+# manually if needed: ln -s /var/packages/php84/target/bin/php /usr/local/bin/php84
+create_symlinks() {
+    log "Skipping system symlinks (non-root package)"
+    log "PHP binary available at: ${SYNOPKG_PKGDEST}/bin/php"
+}
+
+# Main installation process
+main() {
+    log "=========================================="
+    log "PHP 8.4.15 Post-installation starting..."
+    log "=========================================="
+
+    create_directories
+    init_php_ini
+    init_php_fpm_conf
+    process_wizard_selections
+    set_permissions
+    create_symlinks
+
+    log "=========================================="
+    log "Post-installation completed successfully!"
+    log "=========================================="
+
+    exit 0
+}
+
+# Run main
+main "$@"
