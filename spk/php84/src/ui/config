@@ -1,26 +1,16 @@
 {
-    ".url": {
+    "PHP84Manager.js": {
         "SYNO.SDS.PHP84Manager.Instance": {
             "type": "app",
-            "title": "PHP 8.4 Manager",
+            "title": "PHP 8.4 Extension Manager",
             "desc": "Gestionnaire d'extensions PHP 8.4",
-            "icon": "images/php84_64.png",
-            "icon_32": "images/php84_32.png",
-            "icon_16": "images/php84_16.png",
+            "icon": "images/php84_{0}.png",
             "appWindow": "SYNO.SDS.PHP84Manager.MainWindow",
-            "appInstance": "SYNO.SDS.PHP84Manager.Instance",
-            "width": 900,
-            "height": 600,
-            "minWidth": 800,
-            "minHeight": 500,
-            "allowMultiInstance": false,
-            "grantPrivilege": "all",
-            "configablePrivilege": false
+            "texts": "texts",
+            "depend": []
         }
     },
-    "php84": {
-        "texts": "texts",
-        "lib": "PHP84Manager.js",
-        "css": "style.css"
+    ".css": {
+        "SYNO.SDS.PHP84Manager.Instance": "style.css"
     }
 }

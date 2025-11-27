@@ -1,5 +1,5 @@
 package="php84"
-version="8.4.15-0018"
+version="8.4.15-0019"
 os_min_ver="7.2-64570"
 arch="geminilake"
 displayname="PHP 8.4"
