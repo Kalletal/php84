@@ -50,9 +50,58 @@ function extensionAvailable($extId, $extDir) {
     return file_exists("$extDir/$extId.so");
 }
 
-// Check if extension is enabled (has .ini file)
+// Get load order prefix for extension (must match postinst)
+function getExtensionPrefix($extId) {
+    switch ($extId) {
+        // Core extensions that others depend on - load first (00-09)
+        case "mysqlnd": return "00";
+        case "pdo": return "01";
+        case "igbinary": return "02";
+        case "msgpack": return "03";
+        // Database extensions depending on pdo/mysqlnd (10-19)
+        case "pdo_mysql":
+        case "pdo_sqlite":
+        case "pdo_pgsql": return "10";
+        case "mysqli": return "11";
+        case "sqlite3": return "12";
+        // Extensions depending on igbinary/msgpack (20-29)
+        case "redis": return "20";
+        case "memcached": return "21";
+        // All other extensions (50+)
+        default: return "50";
+    }
+}
+
+// Get ini filename with prefix
+function getIniFilename($extId) {
+    return getExtensionPrefix($extId) . "-" . $extId . ".ini";
+}
+
+// Check if extension is enabled (has .ini file with or without prefix)
 function extensionEnabled($extId, $confDir) {
-    return file_exists("$confDir/$extId.ini");
+    // Check prefixed format first (new format)
+    $prefixedFile = $confDir . "/" . getIniFilename($extId);
+    if (file_exists($prefixedFile)) return true;
+    // Check legacy non-prefixed format
+    if (file_exists("$confDir/$extId.ini")) return true;
+    return false;
+}
+
+// Get all ini files for an extension (for cleanup)
+function getExtensionIniFiles($extId, $confDir) {
+    $files = [];
+    // Prefixed format
+    $prefixedFile = $confDir . "/" . getIniFilename($extId);
+    if (file_exists($prefixedFile)) $files[] = $prefixedFile;
+    // Legacy non-prefixed format
+    $legacyFile = "$confDir/$extId.ini";
+    if (file_exists($legacyFile)) $files[] = $legacyFile;
+    // Also check for any other prefixed variants (XX-extId.ini)
+    $pattern = $confDir . "/*-" . $extId . ".ini";
+    foreach (glob($pattern) as $f) {
+        if (!in_array($f, $files)) $files[] = $f;
+    }
+    return $files;
 }
 
 // GET: List extensions
@@ -114,7 +163,8 @@ if ($method === "POST") {
     $errors = [];
 
     foreach ($data["extensions"] as $extId => $enable) {
-        $iniFile = "$confDir/$extId.ini";
+        // Use prefixed filename (matches postinst format)
+        $iniFile = "$confDir/" . getIniFilename($extId);
         $soFile = "$extDir/$extId.so";
 
         if ($enable) {
@@ -122,6 +172,11 @@ if ($method === "POST") {
             if (!file_exists($soFile)) {
                 $errors[] = "Extension $extId not available";
                 continue;
+            }
+
+            // First, remove any existing ini files (cleanup duplicates)
+            foreach (getExtensionIniFiles($extId, $confDir) as $oldFile) {
+                @unlink($oldFile);
             }
 
             // Determine if Zend extension
@@ -150,11 +205,13 @@ if ($method === "POST") {
             chmod($iniFile, 0644);
             $updated++;
         } else {
-            // Disable extension
-            if (file_exists($iniFile)) {
-                unlink($iniFile);
-                $updated++;
+            // Disable extension - remove ALL ini files (prefixed and legacy)
+            $removed = false;
+            foreach (getExtensionIniFiles($extId, $confDir) as $oldFile) {
+                @unlink($oldFile);
+                $removed = true;
             }
+            if ($removed) $updated++;
         }
     }
 
