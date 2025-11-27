@@ -1,5 +1,16 @@
 {
     "defaults": {
         "run-as": "package"
+    },
+    "username": "php84",
+    "groupname": "http",
+    "ctrl-script": "start-stop-status",
+    "webapi": {
+        "SYNO.SDS.PHP84Manager": {
+            "lib": "ui/cgi/extensions.cgi",
+            "security": {
+                "allowUser": true
+            }
+        }
     }
 }
