@@ -3,7 +3,9 @@
 **Feature**: 001-extension-manager
 **Branch**: `001-extension-manager`
 **Generated**: 2025-11-26
-**Total Tasks**: 67
+**Updated**: 2025-11-27
+**Total Tasks**: 74 (67 original + 7 bug fixes)
+**Completed**: 69 | **Remaining**: 5
 
 ## User Stories Summary
 
@@ -181,17 +183,37 @@
 
 ### Tests & Validation
 
-- [ ] T075 Tester l'installation complète sur DS920+
-- [ ] T076 Tester le wizard avec différentes combinaisons d'extensions
+- [x] T075 Tester l'installation complète sur DS920+ (v0015 - démarre correctement)
+- [x] T076 Tester le wizard avec différentes combinaisons d'extensions
 - [ ] T077 Tester l'ouverture de la fenêtre DSM via "Ouvrir"
-- [ ] T078 Tester la modification et le redémarrage du service
+- [ ] T078 Tester la modification et le redémarrage du service via l'UI
 - [ ] T079 Tester les cas d'erreur (dépendances, conflits)
 - [ ] T080 Vérifier les performances (temps wizard < 2min, restart < 10s)
 
 ### Documentation
 
-- [ ] T081 Créer le README.md utilisateur avec instructions d'installation
+- [x] T081 Créer le README.md utilisateur avec instructions d'installation
 - [ ] T082 Documenter les extensions disponibles et leurs dépendances
+
+---
+
+## Phase 8: Bug Fixes & Improvements (v0015)
+
+**Goal**: Corrections de bugs identifiés lors des tests.
+**Completed**: 2025-11-27
+
+### Bug Fixes
+
+- [x] T083 Corriger le problème de fichiers .ini en double (extensions chargées 2x)
+- [x] T084 Unifier le format de nommage des .ini entre postinst et extensions.cgi (XX-ext.ini)
+- [x] T085 Ajouter libmemcached.so.11 manquante pour l'extension memcached
+- [x] T086 Corriger www.conf (supprimer user/group pour mode non-root)
+- [x] T087 Créer script cleanup-nas.sh pour les installations existantes
+
+### Improvements
+
+- [x] T088 Ajouter fonction getExtensionPrefix() dans extensions.cgi pour ordre de chargement
+- [x] T089 Ajouter nettoyage automatique des fichiers .ini legacy lors de l'activation
 
 ---
 
