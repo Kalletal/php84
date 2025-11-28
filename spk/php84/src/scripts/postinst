@@ -31,6 +31,12 @@ create_directories() {
     mkdir -p "${SYNOPKG_PKGVAR}/log"
     mkdir -p "${SYNOPKG_PKGVAR}/run"
     mkdir -p "${SYNOPKG_PKGVAR}/tmp"
+
+    # CRITICAL: Allow 'http' user (CGI executor) to write extension configs
+    # CGI scripts in DSM 7 run as 'http' user, not the package user (sc-php84)
+    # Without this, the Extension Manager UI cannot enable/disable extensions
+    chmod 777 "${CONF_D_DIR}"
+    log "Set conf.d permissions to 777 for CGI access"
 }
 
 # Initialize php.ini
@@ -141,20 +147,21 @@ EOF
     fi
 
     # Create pool directory and default pool
-    # In non-root mode, PHP-FPM runs as the user who starts it
-    # We must NOT specify user/group directives (requires root)
-
     mkdir -p "${CONF_DIR}/php-fpm.d"
     if [ ! -f "${CONF_DIR}/php-fpm.d/www.conf" ]; then
-        # Note: In non-root mode, we omit user/group directives
-        # PHP-FPM will run as the package service user automatically
+        # PHP-FPM pool configuration
+        # user/group are required when PHP-FPM master is started as root
+        # DSM starts services via root, so we must specify the package user
         cat > "${CONF_DIR}/php-fpm.d/www.conf" << EOF
 [www]
-; Non-root mode: omit user/group (runs as service user)
-; user and group directives removed - requires root privileges
+; Run workers as the package user
+user = ${SYNOPKG_PKGNAME}
+group = ${SYNOPKG_PKGNAME}
 
-; Socket in package var directory (accessible without root)
+; Socket in package var directory
 listen = ${SYNOPKG_PKGVAR}/run/php-fpm.sock
+listen.owner = ${SYNOPKG_PKGNAME}
+listen.group = ${SYNOPKG_PKGNAME}
 listen.mode = 0666
 
 ; Process manager settings
@@ -181,22 +188,20 @@ enable_extension() {
     ext_file="${ext_name}.so"
 
     # Determine load order prefix based on dependencies
-    # Lower numbers load first
+    # MUST match index.cgi logic for consistency!
+    # 20- = Core extensions that others depend on (load first)
+    # 50- = Standard extensions (default)
+    # 70- = Extensions that depend on core extensions (load last)
     case "$ext_name" in
-        # Core extensions that others depend on - load first (00-09)
-        mysqlnd)      prefix="00" ;;
-        pdo)          prefix="01" ;;
-        igbinary)     prefix="02" ;;
-        msgpack)      prefix="03" ;;
-        # Database extensions depending on pdo/mysqlnd (10-19)
-        pdo_mysql|pdo_sqlite|pdo_pgsql) prefix="10" ;;
-        mysqli)       prefix="11" ;;
-        sqlite3)      prefix="12" ;;
-        # Extensions depending on igbinary/msgpack (20-29)
-        redis)        prefix="20" ;;
-        memcached)    prefix="21" ;;
-        # All other extensions (50+)
-        *)            prefix="50" ;;
+        # Core extensions that others depend on - load FIRST (20-)
+        session|sockets|mysqlnd|pdo|igbinary)
+            prefix="20" ;;
+        # Extensions that depend on core extensions - load LAST (70-)
+        ev|event|msgpack|mysqli|pdo_mysql|redis|memcached)
+            prefix="70" ;;
+        # All other extensions (50-)
+        *)
+            prefix="50" ;;
     esac
 
     ini_file="${CONF_D_DIR}/${prefix}-${ext_name}.ini"
@@ -253,10 +258,29 @@ EOF
 }
 
 # Process wizard selections based on profile
-# Wizard variables: profile_minimal, profile_standard, profile_complete
-# Plus optional extensions: opt_*
+# Wizard variables: wizard_profile_minimal, wizard_profile_standard, wizard_profile_complete
+# Plus optional extensions: wizard_min_*, wizard_std_*
 process_wizard_selections() {
     log "Processing wizard profile selection..."
+
+    # DEBUG: Log wizard environment variables
+    log "DEBUG: wizard_profile_minimal=$wizard_profile_minimal"
+    log "DEBUG: wizard_profile_standard=$wizard_profile_standard"
+    log "DEBUG: wizard_profile_complete=$wizard_profile_complete"
+    log "DEBUG: SYNOPKG_PKG_STATUS=$SYNOPKG_PKG_STATUS"
+
+    # T013: Preserve existing extensions on upgrade
+    if [ "$SYNOPKG_PKG_STATUS" = "UPGRADE" ]; then
+        log "UPGRADE detected - preserving existing extension configuration"
+        # On upgrade, don't touch conf.d - keep existing .ini files
+        return 0
+    fi
+
+    # CRITICAL: Clean conf.d for fresh install (DSM doesn't delete var/ on uninstall)
+    # This ensures old .ini files from previous installations are removed
+    log "Fresh install - cleaning conf.d directory"
+    rm -f "${CONF_D_DIR}"/*.ini 2>/dev/null
+    log "Cleaned old extension configurations"
 
     # Initialize user config
     cat > "${USER_CONFIG}" << 'EOF'
@@ -274,18 +298,20 @@ process_wizard_selections() {
 }
 EOF
 
-    # Determine selected profile and enable base extensions
-    if [ "$profile_complete" = "true" ]; then
+    # Determine selected profile
+    # IMPORTANT: Minimal and Standard profiles do NOT enable base extensions automatically
+    # Only explicitly selected extensions are enabled (fix for bug 003)
+    if [ "$wizard_profile_complete" = "true" ]; then
         log "Profile: COMPLETE - Enabling all extensions"
         enable_profile_complete
-    elif [ "$profile_minimal" = "true" ]; then
-        log "Profile: MINIMAL - Enabling base extensions"
-        enable_profile_minimal
+    elif [ "$wizard_profile_minimal" = "true" ]; then
+        log "Profile: MINIMAL - No base extensions (only selected ones)"
+        # DO NOT call enable_profile_minimal() - no default extensions
         process_minimal_extensions
     else
-        # Default to standard
-        log "Profile: STANDARD - Enabling common extensions"
-        enable_profile_standard
+        # Default to standard (wizard_profile_standard = true or fallback)
+        log "Profile: STANDARD - No base extensions (only selected ones)"
+        # DO NOT call enable_profile_standard() - no default extensions
         process_standard_extensions
     fi
 }
@@ -353,46 +379,49 @@ enable_profile_complete() {
 }
 
 # Process optional extensions for Minimal profile
+# Uses wizard_min_* variables from wizard
+# Default: 7 most popular extensions (opcache, mbstring, pdo, pdo_mysql, curl, openssl, gd)
 process_minimal_extensions() {
     log "Processing Minimal profile extensions..."
 
-    # Enable igbinary if redis is selected (it depends on it)
-    if [ "$min_redis" = "true" ]; then
-        enable_extension "igbinary"
+    # Enable mysqlnd if pdo_mysql is selected (dependency)
+    if [ "$wizard_min_pdo_mysql" = "true" ]; then
+        enable_extension "mysqlnd"
     fi
 
-    [ "$min_apcu" = "true" ] && enable_extension "apcu"
-    [ "$min_redis" = "true" ] && enable_extension "redis"
-    [ "$min_mbstring" = "true" ] && enable_extension "mbstring"
-    [ "$min_json" = "true" ] && enable_extension "json"
-    [ "$min_xml" = "true" ] && enable_extension "xml"
-    [ "$min_zip" = "true" ] && enable_extension "zip"
+    # 7 essential extensions (pre-selected by default)
+    [ "$wizard_min_opcache" = "true" ] && enable_extension "opcache"
+    [ "$wizard_min_mbstring" = "true" ] && enable_extension "mbstring"
+    [ "$wizard_min_pdo" = "true" ] && enable_extension "pdo"
+    [ "$wizard_min_pdo_mysql" = "true" ] && enable_extension "pdo_mysql"
+    [ "$wizard_min_curl" = "true" ] && enable_extension "curl"
+    [ "$wizard_min_openssl" = "true" ] && enable_extension "openssl"
+    [ "$wizard_min_gd" = "true" ] && enable_extension "gd"
 }
 
-# Process optional extensions for Standard profile
+# Process extensions for Standard profile
+# Uses wizard_std_* variables from wizard
+# 11 web extensions (10 pre-selected + opcache optional)
 process_standard_extensions() {
     log "Processing Standard profile extensions..."
 
-    # Enable igbinary if redis or memcached is selected (they depend on it)
-    if [ "$std_redis" = "true" ] || [ "$std_memcached" = "true" ]; then
-        enable_extension "igbinary"
+    # Enable mysqlnd if pdo_mysql is selected (dependency)
+    if [ "$wizard_std_pdo_mysql" = "true" ]; then
+        enable_extension "mysqlnd"
     fi
 
-    # Cache & NoSQL
-    [ "$std_apcu" = "true" ] && enable_extension "apcu"
-    [ "$std_redis" = "true" ] && enable_extension "redis"
-    [ "$std_memcached" = "true" ] && enable_extension "memcached"
-    [ "$std_mongodb" = "true" ] && enable_extension "mongodb"
-    # Network
-    [ "$std_sockets" = "true" ] && enable_extension "sockets"
-    [ "$std_soap" = "true" ] && enable_extension "soap"
-    [ "$std_ssh2" = "true" ] && enable_extension "ssh2"
-    [ "$std_ldap" = "true" ] && enable_extension "ldap"
-    [ "$std_ftp" = "true" ] && enable_extension "ftp"
-    # Development
-    [ "$std_xdebug" = "true" ] && enable_extension "xdebug"
-    [ "$std_yaml" = "true" ] && enable_extension "yaml"
-    [ "$std_pcntl" = "true" ] && enable_extension "pcntl"
+    # 11 web essential extensions (10 pre-selected by default)
+    [ "$wizard_std_opcache" = "true" ] && enable_extension "opcache"
+    [ "$wizard_std_pdo" = "true" ] && enable_extension "pdo"
+    [ "$wizard_std_pdo_mysql" = "true" ] && enable_extension "pdo_mysql"
+    [ "$wizard_std_mbstring" = "true" ] && enable_extension "mbstring"
+    [ "$wizard_std_curl" = "true" ] && enable_extension "curl"
+    [ "$wizard_std_openssl" = "true" ] && enable_extension "openssl"
+    [ "$wizard_std_gd" = "true" ] && enable_extension "gd"
+    [ "$wizard_std_tokenizer" = "true" ] && enable_extension "tokenizer"
+    [ "$wizard_std_bcmath" = "true" ] && enable_extension "bcmath"
+    [ "$wizard_std_xml" = "true" ] && enable_extension "xml"
+    [ "$wizard_std_zip" = "true" ] && enable_extension "zip"
 }
 
 # Set proper permissions
@@ -405,6 +434,39 @@ set_permissions() {
     # No chmod operations needed - files are created with correct permissions
     # Binary permissions are preserved from package.tgz
     log "Permissions managed by DSM"
+}
+
+# Setup PHP wrapper with LD_LIBRARY_PATH
+# This ensures PHP can find bundled libraries (libgd, libicu, etc.)
+setup_php_wrapper() {
+    log "Setting up PHP wrapper..."
+    BIN_DIR="${SYNOPKG_PKGDEST}/bin"
+
+    # Only setup if not already done (php.bin doesn't exist yet)
+    if [ -f "${BIN_DIR}/php" ] && [ ! -f "${BIN_DIR}/php.bin" ]; then
+        # Rename original binary
+        mv "${BIN_DIR}/php" "${BIN_DIR}/php.bin"
+
+        # Rename wrapper to php
+        if [ -f "${BIN_DIR}/php-wrapper" ]; then
+            mv "${BIN_DIR}/php-wrapper" "${BIN_DIR}/php"
+            chmod 755 "${BIN_DIR}/php"
+            log "PHP wrapper installed successfully"
+        else
+            # Fallback: create wrapper if missing
+            cat > "${BIN_DIR}/php" << 'WRAPPER'
+#!/bin/sh
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PKG_DIR="$(dirname "$SCRIPT_DIR")"
+export LD_LIBRARY_PATH="${PKG_DIR}/lib:${LD_LIBRARY_PATH}"
+exec "${SCRIPT_DIR}/php.bin" "$@"
+WRAPPER
+            chmod 755 "${BIN_DIR}/php"
+            log "PHP wrapper created (fallback)"
+        fi
+    else
+        log "PHP wrapper already configured"
+    fi
 }
 
 # Create symlinks for convenience
@@ -427,6 +489,7 @@ main() {
     init_php_fpm_conf
     process_wizard_selections
     set_permissions
+    setup_php_wrapper
     create_symlinks
 
     log "=========================================="

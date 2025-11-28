@@ -26,8 +26,8 @@ jsFunction=$(/bin/cat<<EOF
     function getSelectedProfile(wizardDialog) {
         var profileStep = findStepByTitle(wizardDialog, "${PROFILE_STEP}");
         if (!profileStep) return "standard";
-        if (profileStep.getComponent("profile_minimal").checked) return "minimal";
-        if (profileStep.getComponent("profile_complete").checked) return "complete";
+        if (profileStep.getComponent("wizard_profile_minimal").checked) return "minimal";
+        if (profileStep.getComponent("wizard_profile_complete").checked) return "complete";
         return "standard";
     }
 EOF
@@ -126,18 +126,18 @@ STEP_PROFILE=$(/bin/cat<<EOF
             "desc": "Choisissez le profil qui correspond a vos besoins :",
             "subitems": [
                 {
-                    "key": "profile_minimal",
-                    "desc": "<b>Minimal</b> - 7 extensions essentielles<br/><small>OPcache, Session, Filter, Ctype, PDO, cURL, OpenSSL</small>",
+                    "key": "wizard_profile_minimal",
+                    "desc": "<b>Minimal</b> - 7 extensions essentielles<br/><small>OPcache, PDO, MySQL, cURL, OpenSSL, Mbstring, GD</small>",
                     "defaultValue": false
                 },
                 {
-                    "key": "profile_standard",
-                    "desc": "<b>Standard</b> - 23 extensions web (recommande)<br/><small>+ MySQL, SQLite, Mbstring, Intl, XML, DOM, Zip, GD...</small>",
+                    "key": "wizard_profile_standard",
+                    "desc": "<b>Standard</b> - 11 extensions web (recommande)<br/><small>+ Tokenizer, BCMath, XML, Zip</small>",
                     "defaultValue": true
                 },
                 {
-                    "key": "profile_complete",
-                    "desc": "<b>Complet</b> - Toutes les extensions<br/><small>Tout est active. Gerez dans PHP Manager.</small>",
+                    "key": "wizard_profile_complete",
+                    "desc": "<b>Complet</b> - Toutes les extensions (~142)<br/><small>Tout est active. Gerez dans PHP Manager.</small>",
                     "defaultValue": false
                 }
             ]
@@ -155,19 +155,20 @@ STEP_MINIMAL=$(/bin/cat<<EOF
     "items": [
         {
             "type": "textfield",
-            "desc": "<div style='padding:8px;background:#e8f5e9;border-left:3px solid #4caf50'><b>Profil Minimal</b> - Extensions de base incluses : OPcache, Session, Filter, Ctype, PDO, cURL, OpenSSL</div>",
+            "desc": "<div style='padding:8px;background:#e8f5e9;border-left:3px solid #4caf50'><b>Profil Minimal</b> - 7 extensions essentielles pre-selectionnees. Decochez celles dont vous n'avez pas besoin.</div>",
             "subitems": [{"key": "info_minimal", "desc": "", "hidden": true}]
         },
         {
             "type": "multiselect",
-            "desc": "Ajouter des extensions optionnelles :",
+            "desc": "Extensions essentielles (les plus utilisees) :",
             "subitems": [
-                {"key": "min_apcu", "desc": "APCu (cache memoire)", "defaultValue": false},
-                {"key": "min_redis", "desc": "Redis", "defaultValue": false},
-                {"key": "min_mbstring", "desc": "Mbstring (encodage)", "defaultValue": false},
-                {"key": "min_xml", "desc": "XML", "defaultValue": false},
-                {"key": "min_zip", "desc": "Zip", "defaultValue": false},
-                {"key": "min_gd", "desc": "GD (images)", "defaultValue": false}
+                {"key": "wizard_min_opcache", "desc": "OPcache (performance)", "defaultValue": true},
+                {"key": "wizard_min_mbstring", "desc": "Mbstring (encodage UTF-8)", "defaultValue": true},
+                {"key": "wizard_min_pdo", "desc": "PDO (base de donnees)", "defaultValue": true},
+                {"key": "wizard_min_pdo_mysql", "desc": "PDO MySQL", "defaultValue": true},
+                {"key": "wizard_min_curl", "desc": "cURL (requetes HTTP)", "defaultValue": true},
+                {"key": "wizard_min_openssl", "desc": "OpenSSL (securite/HTTPS)", "defaultValue": true},
+                {"key": "wizard_min_gd", "desc": "GD (images)", "defaultValue": true}
             ]
         }
     ]
@@ -183,36 +184,24 @@ STEP_STANDARD=$(/bin/cat<<EOF
     "items": [
         {
             "type": "textfield",
-            "desc": "<div style='padding:8px;background:#e3f2fd;border-left:3px solid #2196f3'><b>Profil Standard</b> - Extensions web incluses : MySQL, SQLite, Mbstring, Intl, XML, DOM, Zip, GD...</div>",
+            "desc": "<div style='padding:8px;background:#e3f2fd;border-left:3px solid #2196f3'><b>Profil Standard</b> - 11 extensions web pre-selectionnees. Decochez celles dont vous n'avez pas besoin.</div>",
             "subitems": [{"key": "info_standard", "desc": "", "hidden": true}]
         },
         {
             "type": "multiselect",
-            "desc": "Cache et NoSQL :",
+            "desc": "Extensions web essentielles :",
             "subitems": [
-                {"key": "std_apcu", "desc": "APCu (cache memoire)", "defaultValue": false},
-                {"key": "std_redis", "desc": "Redis", "defaultValue": false},
-                {"key": "std_memcached", "desc": "Memcached", "defaultValue": false},
-                {"key": "std_mongodb", "desc": "MongoDB", "defaultValue": false}
-            ]
-        },
-        {
-            "type": "multiselect",
-            "desc": "Reseau :",
-            "subitems": [
-                {"key": "std_sockets", "desc": "Sockets", "defaultValue": false},
-                {"key": "std_soap", "desc": "SOAP", "defaultValue": false},
-                {"key": "std_ssh2", "desc": "SSH2", "defaultValue": false},
-                {"key": "std_ldap", "desc": "LDAP", "defaultValue": false}
-            ]
-        },
-        {
-            "type": "multiselect",
-            "desc": "Developpement :",
-            "subitems": [
-                {"key": "std_xdebug", "desc": "Xdebug", "defaultValue": false},
-                {"key": "std_yaml", "desc": "YAML", "defaultValue": false},
-                {"key": "std_pcntl", "desc": "PCNTL (CLI)", "defaultValue": false}
+                {"key": "wizard_std_opcache", "desc": "OPcache (performance)", "defaultValue": false},
+                {"key": "wizard_std_pdo", "desc": "PDO (base de donnees)", "defaultValue": true},
+                {"key": "wizard_std_pdo_mysql", "desc": "PDO MySQL", "defaultValue": true},
+                {"key": "wizard_std_mbstring", "desc": "Mbstring (encodage UTF-8)", "defaultValue": true},
+                {"key": "wizard_std_curl", "desc": "cURL (requetes HTTP)", "defaultValue": true},
+                {"key": "wizard_std_openssl", "desc": "OpenSSL (securite/HTTPS)", "defaultValue": true},
+                {"key": "wizard_std_gd", "desc": "GD (images)", "defaultValue": true},
+                {"key": "wizard_std_tokenizer", "desc": "Tokenizer", "defaultValue": true},
+                {"key": "wizard_std_bcmath", "desc": "BCMath (calculs)", "defaultValue": true},
+                {"key": "wizard_std_xml", "desc": "XML", "defaultValue": true},
+                {"key": "wizard_std_zip", "desc": "Zip", "defaultValue": true}
             ]
         }
     ]

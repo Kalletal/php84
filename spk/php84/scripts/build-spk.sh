@@ -36,9 +36,13 @@ print_step() {
 }
 
 # Parse arguments
-BUMP_VERSION=""
+# Default: always bump build number
+BUMP_VERSION="build"
 while [ $# -gt 0 ]; do
     case "$1" in
+        --no-bump|-n)
+            BUMP_VERSION=""
+            ;;
         --bump|-b)
             BUMP_VERSION="${2:-build}"
             if [ -n "$2" ] && [ "${2#-}" = "$2" ]; then
@@ -51,14 +55,15 @@ while [ $# -gt 0 ]; do
             echo "Usage: $0 [options]"
             echo ""
             echo "Options:"
-            echo "  --bump, -b [type]  Bump version before building"
+            echo "  --bump, -b [type]  Bump version before building (default: build)"
             echo "                     Types: build (default), patch, minor, major"
+            echo "  --no-bump, -n      Build without incrementing version"
             echo "  --help, -h         Show this help"
             echo ""
             echo "Examples:"
-            echo "  $0                 # Build without version change"
-            echo "  $0 --bump          # Bump build number and build"
+            echo "  $0                 # Bump build number and build (default)"
             echo "  $0 --bump patch    # Bump patch version and build"
+            echo "  $0 --no-bump       # Build without version change"
             exit 0
             ;;
         *)
@@ -112,6 +117,8 @@ rm -f "${DIST_DIR}/${PACKAGE}"-*.spk 2>/dev/null && echo "  Previous versions re
 # Set permissions on scripts
 print_step "Setting script permissions..."
 chmod 755 "${SRC_DIR}/scripts/"* 2>/dev/null || true
+chmod 755 "${SRC_DIR}/target/scripts/"* 2>/dev/null || true
+chmod 755 "${SRC_DIR}/ui/"*.cgi 2>/dev/null || true
 chmod 755 "${SRC_DIR}/ui/cgi/"*.cgi 2>/dev/null || true
 
 # Create package.tgz
@@ -160,7 +167,7 @@ if [ -f "src/INFO" ]; then
 fi
 
 # Add icons
-for icon in src/PACKAGE_ICON*.png; do
+for icon in src/PACKAGE_ICON*.PNG; do
     if [ -f "$icon" ]; then
         SPK_FILES="$SPK_FILES $icon"
     fi

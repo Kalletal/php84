@@ -3,9 +3,9 @@
 **Feature**: 001-extension-manager
 **Branch**: `001-extension-manager`
 **Generated**: 2025-11-26
-**Updated**: 2025-11-27
+**Updated**: 2025-11-28
 **Total Tasks**: 74 (67 original + 7 bug fixes)
-**Completed**: 69 | **Remaining**: 5
+**Completed**: 74 | **Remaining**: 0
 
 ## User Stories Summary
 
@@ -185,15 +185,15 @@
 
 - [x] T075 Tester l'installation complète sur DS920+ (v0015 - démarre correctement)
 - [x] T076 Tester le wizard avec différentes combinaisons d'extensions
-- [ ] T077 Tester l'ouverture de la fenêtre DSM via "Ouvrir"
-- [ ] T078 Tester la modification et le redémarrage du service via l'UI
-- [ ] T079 Tester les cas d'erreur (dépendances, conflits)
-- [ ] T080 Vérifier les performances (temps wizard < 2min, restart < 10s)
+- [x] T077 Tester l'ouverture de la fenêtre DSM via "Ouvrir" (v0015 - fonctionne avec ui/config DSM 7)
+- [x] T078 Tester la modification et le redémarrage du service via l'UI (v0015 - validé)
+- [x] T079 Tester les cas d'erreur (dépendances, conflits) (v0015 - validé)
+- [x] T080 Vérifier les performances (temps wizard < 2min, restart < 10s) (v0015 - validé)
 
 ### Documentation
 
 - [x] T081 Créer le README.md utilisateur avec instructions d'installation
-- [ ] T082 Documenter les extensions disponibles et leurs dépendances
+- [x] T082 Documenter les extensions disponibles et leurs dépendances (EXTENSIONS.md créé)
 
 ---
 
