@@ -31,7 +31,12 @@ service_prestart() {
     mkdir -p "${SYNOPKG_PKGVAR}/tmp"
     mkdir -p "${SYNOPKG_PKGVAR}/etc/conf.d"
 
-    # Note: chown/chmod removed - requires root privileges
+    # CRITICAL: Allow 'http' user (CGI executor) to write extension configs
+    # CGI scripts in DSM 7 run as 'http' user, not the package user (sc-php84)
+    # Without this, the Extension Manager UI cannot enable/disable extensions
+    chmod 777 "${SYNOPKG_PKGVAR}/etc/conf.d"
+
+    # Note: chown removed - requires root privileges
     # DSM 7 handles permissions automatically for SYNOPKG_PKGVAR
 
     # Set LD_LIBRARY_PATH for bundled libraries

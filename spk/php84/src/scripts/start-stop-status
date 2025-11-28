@@ -15,6 +15,8 @@ PHP_FPM="${SYNOPKG_PKGDEST}/sbin/php-fpm"
 PHP_FPM_CONF="${SYNOPKG_PKGVAR}/etc/php-fpm.conf"
 PHP_INI="${SYNOPKG_PKGVAR}/etc/php.ini"
 PID_FILE="${SYNOPKG_PKGVAR}/run/php-fpm.pid"
+RELOAD_WATCHER="${SYNOPKG_PKGDEST}/scripts/reload-watcher.sh"
+WATCHER_PID_FILE="${SYNOPKG_PKGVAR}/run/reload-watcher.pid"
 
 # Logging function
 log() {
@@ -31,6 +33,35 @@ is_running() {
         fi
     fi
     return 1
+}
+
+# Start the reload watcher
+start_watcher() {
+    if [ -f "$RELOAD_WATCHER" ]; then
+        log "Starting reload watcher..."
+        # Run watcher in background
+        sh "$RELOAD_WATCHER" &
+        sleep 1
+        if [ -f "$WATCHER_PID_FILE" ]; then
+            watcher_pid=$(cat "$WATCHER_PID_FILE" 2>/dev/null)
+            log "Reload watcher started (PID: $watcher_pid)"
+        else
+            log "WARNING: Reload watcher may not have started"
+        fi
+    fi
+}
+
+# Stop the reload watcher
+stop_watcher() {
+    if [ -f "$WATCHER_PID_FILE" ]; then
+        watcher_pid=$(cat "$WATCHER_PID_FILE" 2>/dev/null)
+        if [ -n "$watcher_pid" ] && kill -0 "$watcher_pid" 2>/dev/null; then
+            log "Stopping reload watcher (PID: $watcher_pid)"
+            kill "$watcher_pid" 2>/dev/null
+            sleep 1
+        fi
+        rm -f "$WATCHER_PID_FILE"
+    fi
 }
 
 # Verify configuration
@@ -93,6 +124,8 @@ start_service() {
     if is_running; then
         pid=$(cat "$PID_FILE" 2>/dev/null)
         log "PHP-FPM started successfully (PID: $pid)"
+        # Start the reload watcher
+        start_watcher
         return 0
     else
         log "ERROR: PHP-FPM failed to start"
@@ -103,6 +136,9 @@ start_service() {
 # Stop service
 stop_service() {
     log "Stopping PHP-FPM service..."
+
+    # Stop the reload watcher first
+    stop_watcher
 
     if ! is_running; then
         log "PHP-FPM is not running"

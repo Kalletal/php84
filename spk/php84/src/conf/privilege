@@ -1,5 +1,7 @@
 {
-    "defaults": {
-        "run-as": "package"
-    }
+	"defaults":{
+		"run-as": "package"
+	},
+	"username": "php84",
+	"join-groupname": "system"
 }

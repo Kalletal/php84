@@ -1,7 +1,7 @@
 {
   "version": "2.0",
   "php_version": "8.4.15",
-  "total_extensions": 101,
+  "total_extensions": 100,
   "categories": {
     "core": {"name": "Core", "description": "Extensions essentielles", "order": 1, "wizard": true},
     "database": {"name": "Base de données", "description": "Connexion et manipulation BDD", "order": 2, "wizard": true},
@@ -44,7 +44,7 @@
 
     "apcu": {"name": "APCu", "category": "cache", "filename": "apcu.so", "default": false, "wizard": true},
     "igbinary": {"name": "Igbinary", "category": "cache", "filename": "igbinary.so", "default": false, "wizard": true},
-    "msgpack": {"name": "MsgPack", "category": "cache", "filename": "msgpack.so", "default": false, "wizard": true},
+    "msgpack": {"name": "MsgPack", "category": "cache", "filename": "msgpack.so", "default": false, "wizard": true, "dependencies": ["session"]},
 
     "curl": {"name": "cURL", "category": "network", "filename": "curl.so", "default": true, "wizard": true},
     "openssl": {"name": "OpenSSL", "category": "network", "filename": "openssl.so", "default": true, "wizard": true},
@@ -113,7 +113,7 @@
     "psr": {"name": "PSR", "category": "data", "filename": "psr.so", "default": false, "wizard": false},
 
     "swoole": {"name": "Swoole", "category": "async", "filename": "swoole.so", "default": false, "wizard": false},
-    "ev": {"name": "Ev", "category": "async", "filename": "ev.so", "default": false, "wizard": false},
+    "ev": {"name": "Ev", "category": "async", "filename": "ev.so", "default": false, "wizard": false, "dependencies": ["sockets"]},
     "event": {"name": "Event", "category": "async", "filename": "event.so", "default": false, "wizard": false, "dependencies": ["sockets"]},
 
     "tidy": {"name": "Tidy", "category": "misc", "filename": "tidy.so", "default": false, "wizard": true},
@@ -128,7 +128,6 @@
     "geospatial": {"name": "Geospatial", "category": "misc", "filename": "geospatial.so", "default": false, "wizard": false},
     "parle": {"name": "Parle", "category": "misc", "filename": "parle.so", "default": false, "wizard": false},
     "quickhash": {"name": "Quickhash", "category": "misc", "filename": "quickhash.so", "default": false, "wizard": false},
-    "seaslog": {"name": "SeasLog", "category": "misc", "filename": "seaslog.so", "default": false, "wizard": false},
     "sync": {"name": "Sync", "category": "misc", "filename": "sync.so", "default": false, "wizard": false},
     "trader": {"name": "Trader", "category": "misc", "filename": "trader.so", "default": false, "wizard": false},
     "translit": {"name": "Translit", "category": "misc", "filename": "translit.so", "default": false, "wizard": false},
